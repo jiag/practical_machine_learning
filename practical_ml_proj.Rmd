@@ -1,0 +1,119 @@
+## Practical machine learning Course Project
+### Background
+
+Nowadays it is possible to collect a large amount of data about personal activity with numerous devices. In this project, the goal is to use data from accelerometers on the belt, forearm, arm, and dumbell of 6 participants to quantify how well people did in the exercises. There are five different manners in which they did the exercise: A,B,C,D and E. It is stored as the "classe" variable in the dataset. 
+
+### Load data and other preparations
+First we load the training and testing data to workspace. 
+```{r}
+train_data<-read.csv("pml-training.csv",na.strings=c("NA","#DIV/0!",""),sep=",")
+test_data<-read.csv("pml-testing.csv",na.strings=c("NA","#DIV/0!",""),sep=",")
+```
+
+Some libraries are loaded for later analysis. 
+```{r}
+library(caret)
+library(AppliedPredictiveModeling)
+library(rpart.plot)
+library(rattle)
+```
+
+### Exploratory analysis
+To get a glimpse of the training data, we use *str* command to display the internal structure of it.
+```{r}
+str(train_data,list.len=15)
+```
+So there are 19622 observations and 160 variables in the training data. Notice the last colomun *classe* is what we want to predict. We convert it to factors and calculate the number of cases fall into each manner type. As shown in the summary, the number of cases in each level is almost around the same magnitude.
+```{r}
+train_data$classe<-as.factor(train_data$classe)
+summary(train_data$classe)
+```
+After careful investigation of the dataset I noticed there are many variables(or columns) have more than 14400 NA values out of 19622 observations. So I decide to throw those variables away and tighten the data set.
+```{r}
+NAcol <- apply(train_data,2,function(x) {sum(is.na(x))})
+train_data <- train_data[,!(NAcol>14400)]
+dim(train_data)
+```
+Also we can abandon variables with low variance. Now we have 59 variables left.
+```{r}
+nzvariable<-nearZeroVar(train_data,saveMetrics=TRUE)
+head(nzvariable,6)
+train_data<-train_data[,nzvariable$nzv==FALSE]
+dim(train_data)
+```
+
+### Data partition
+We devide the training set to two parts, 75% of the data goes into training set and 25% goes to the testing set. So we have `r dim(training)[1]` observations for training and `r dim(testing)[1]` observations for testing.
+```{r}
+set.seed(123)
+trainIndex <- createDataPartition(train_data$classe,p=3/4, list=FALSE)
+training <- train_data[trainIndex,]
+testing <- train_data[-trainIndex,]
+dim(training)
+dim(testing)
+```
+
+For the prediction purpose, we don't need varibles such as ID, user_name, etc...So we remove those variables from the training set and store column names in *colns* for later usage.
+```{r}
+training<-training[,-c(1:7)]
+colns <-colnames(training)
+```
+
+### Model 1: Decision tree
+First we use decision tree model to train our data as it is easy to interpret. We change the default resampling method to cross validation in the hope of improving the accuracy.
+```{r,cache=FALSE}
+model1 <- train(classe~.,method="rpart",data=training,trControl=trainControl(method='cv'))
+print(model1$finalModel)
+```
+To get better visualization of the model, we print it with the function *fancyRpartPlot* in *rattle* package.
+```{r, fig.height=7,fig.width=7}
+fancyRpartPlot(model1$finalModel)
+```
+
+From the graph of the tree we see several varibles are used to build up the tree: yaw_belt, pitch_forarm, pitch_belt, etc. Apply this model to the training set to see the in sample error.
+```{r}
+pred1_0<-predict(model1,training)
+conf1_0<-confusionMatrix(pred1_0,training$classe)
+conf1_0
+```
+
+Now we can apply the model to the testing set.
+```{r}
+pred1<-predict(model1,testing)
+conf1<-confusionMatrix(pred1,testing$classe)
+conf1
+```
+
+This model has a very low accuracy rate and the in sample error is just slightly smaller than the out of sample error. From the confusion matrix we see the accuracy of the model is about 0.5871 and the out of sample error is 1-0.5871=0.4129. 
+
+### Model 2: Random forest
+Next we use random forest model as it is known for high accuracy. Still the cross validation is used as resampling method and we choose to allow *allowparallel=TURE* to make it faster.
+```{r,cache=TRUE}
+model2 <- train(classe~.,method="rf",data=training,trControl=trainControl(method='cv',number=6,allowParallel=TRUE))
+model2
+```
+The model behaves quite good in the training set with possible risk of overfitting.
+```{r}
+pred2_0<-predict(model2,training)
+conf2_0<-confusionMatrix(pred2_0,training$classe)
+conf2_0
+```
+
+Next we apply the trained model to predict the observations in the testing set.
+```{r}
+#getTree(model2$finalModel,k=3)
+pred2<-predict(model2,testing)
+conf2<-confusionMatrix(pred2,testing$classe)
+conf2
+```
+We can see the accuracy is about 0.9923 so the out of sample error is 1-0.9923=0.0077 for predictions made against the cross-validation set. 
+
+
+### Test model on testing set
+For the testing data, we need to classify 20 test cases. First we extract the variables(columns) needed for prediction. And then the random forest model is used because of the high accuracy. The results is shown in answers.
+```{r}
+test_data <- test_data[colns[colns!='classe']]
+answers <- predict(model2, newdata=test_data)
+answers
+```
+
