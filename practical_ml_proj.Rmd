@@ -67,7 +67,7 @@ print(model1$finalModel)
 ```
 To get better visualization of the model, we print it with the function *fancyRpartPlot* in *rattle* package.
 ```{r, fig.height=7,fig.width=7}
-fancyRpartPlot(model1$finalModel)
+fancyRpartPlot(model1$finalModel,sub="")
 ```
 
 From the graph of the tree we see several varibles are used to build up the tree: yaw_belt, pitch_forarm, pitch_belt, etc. Apply this model to the training set to see the in sample error.

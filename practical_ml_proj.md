@@ -163,7 +163,7 @@ print(model1$finalModel)
 To get better visualization of the model, we print it with the function *fancyRpartPlot* in *rattle* package.
 
 ```r
-fancyRpartPlot(model1$finalModel)
+fancyRpartPlot(model1$finalModel,sub="")
 ```
 
 ![plot of chunk unnamed-chunk-10](figure/unnamed-chunk-10-1.png) 
